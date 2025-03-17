@@ -1,52 +1,95 @@
-import { IconArrowLeft } from '@tabler/icons-react';
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { useForm } from 'react-hook-form'
 import styled from 'styled-components'
+import { Bounce, Slide, ToastContainer, toast } from "react-toastify"
+
+type FormInputs = {
+  data: string
+  formularios: number
+  produtos: number
+  cep: string
+  uf: string
+  cidade: string
+  bairro: string
+  logradouro: string
+  numero: number
+}
 
 export default function Formulario() {
+  const { register, handleSubmit } = useForm<FormInputs>()
 
-  type Visita = {
-    id: number
-    data: string
-    status: 'pendente' | 'concluída'
-    formularios: number
-    produtos: number
-    cep: string
-    uf: string
-    cidade: string
-    logradouro: string
-    bairro: string
-    numero: number
+  function onSubmit(data: FormInputs) {
+    if (!data.data) {
+      toast.error('A data é obrigatória.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+    }
+    if (!data.formularios || data.produtos < 0) {
+      toast.error('O número de formulários é obrigatório.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+    }
+    if (!data.produtos || data.produtos < 0) {
+      toast.error('A quantidade de produtos é obrigatória.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+    }
+
+    console.log('Dados:', data)
   }
 
   return (
-   <>
-   <Container>
-   <Form>
-    <LabelText>Data da Visita</LabelText>
-    <Input type="date" />
-    <LabelText>Quantidade de formulários</LabelText>
-    <Input type="number" />
-    <LabelText>Quantidade de produtos</LabelText>
-    <Input type="number" />
-    <LabelText>CEP</LabelText>
-    <Input type="text" />
-    <LabelText>Cidade</LabelText>
-    <Input type="text" />
-    <LabelText>UF</LabelText>
-    <Input type="text" />
-    <LabelText>Logradouro</LabelText>
-    <Input type="text" />
-    <LabelText>Bairro</LabelText>
-    <Input type="text" />
-    <LabelText>Número</LabelText>
-    <Input type="number" />
-    <Button onClick={() => console.log('salvar')}> ADICIONAR VISITA</Button>
-   </Form>
-   </Container>
-   </>
-  );
+    <Container>
+      <Form onSubmit={handleSubmit(onSubmit)}>
+        <LabelText>Data da Visita</LabelText>
+        <Input {...register('data')} type="date" />
 
+        <LabelText>Quantidade de formulários</LabelText>
+        <Input {...register('formularios')} type="number" />
+
+        <LabelText>Quantidade de produtos</LabelText>
+        <Input {...register('produtos')} type="number" />
+
+        <LabelText>CEP</LabelText>
+        <Input {...register('cep')} type="text" />
+
+        <LabelText>Cidade</LabelText>
+        <Input {...register('cidade')} type="text" />
+
+        <LabelText>UF</LabelText>
+        <Input {...register('uf')} type="text" />
+
+        <LabelText>Logradouro</LabelText>
+        <Input {...register('logradouro')} type="text" />
+
+        <LabelText>Bairro</LabelText>
+        <Input {...register('bairro')} type="text" />
+
+        <LabelText>Número</LabelText>
+        <Input {...register('numero')} type="number" />
+
+        <Button type="submit">ADICIONAR VISITA</Button>
+      </Form>
+    </Container>
+  )
 }
 
 const Button = styled.button`
