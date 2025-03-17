@@ -1,10 +1,13 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import styled from 'styled-components'
 import { Bounce, Slide, ToastContainer, toast } from "react-toastify"
+import axios from 'axios'
 
-type FormInputs = {
+type Visita = {
+  id: number
   data: string
+  status: 'pendente' | 'concluída'
   formularios: number
   produtos: number
   cep: string
@@ -15,10 +18,57 @@ type FormInputs = {
   numero: number
 }
 
-export default function Formulario() {
-  const { register, handleSubmit } = useForm<FormInputs>()
+type FormularioProps = {
+  receberVisitas: (Visitas: Visita[]) => void;
+  editarVisita: Visita | null;
+  enviarVisitas: Visita[] | null;
+}
 
-  function onSubmit(data: FormInputs) {
+export default function Formulario({ enviarVisitas, editarVisita, receberVisitas }: FormularioProps) {
+
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [disabledEndereco, setDisabledEndereco] = useState(false);
+  const [visitas, setVisitas] = useState<Visita[]>(enviarVisitas !== null ? enviarVisitas : [])
+  const { register, handleSubmit, setValue } = useForm<Visita>({
+    defaultValues: editarVisita ?? {}
+  })
+  const handleCep = (e: any) => {
+    setDisabledEndereco(true);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+
+      axios
+        .get(`https://viacep.com.br/ws/${e.target.value.replace(/\D/g, '')}/json/`)
+        .then((r: any) => {
+          setValue('uf', r.data.uf || '')
+          setValue('cidade', r.data.localidade || '')
+          setValue('bairro', r.data.bairro || '')
+          setValue('logradouro', r.data.logradouro || '')
+          setDisabledEndereco(false)
+
+          if (r.data.bairro === '' && r.data.logradouro === '') {
+            setValue('bairro', r.data.bairro || '')
+            setValue('logradouro', r.data.logradouro || '')
+          }
+        })
+        .catch(() => setDisabledEndereco(false))
+    }, 1000)
+  }
+
+  const calcularDuracao = (form: number, produtos: number) => {
+    return (15 * form) + (5 * produtos)
+  }
+
+  useEffect(() => {
+    receberVisitas(visitas);
+  }, [visitas]);
+
+  function onSubmit(data: Visita) {
+    let invalidVisita = false;
+
     if (!data.data) {
       toast.error('A data é obrigatória.', {
         position: 'top-right',
@@ -29,6 +79,7 @@ export default function Formulario() {
         draggable: true,
         theme: 'light'
       })
+      invalidVisita = true;
     }
     if (!data.formularios || data.produtos < 0) {
       toast.error('O número de formulários é obrigatório.', {
@@ -40,6 +91,7 @@ export default function Formulario() {
         draggable: true,
         theme: 'light'
       })
+      invalidVisita = true;
     }
     if (!data.produtos || data.produtos < 0) {
       toast.error('A quantidade de produtos é obrigatória.', {
@@ -51,9 +103,123 @@ export default function Formulario() {
         draggable: true,
         theme: 'light'
       })
+      invalidVisita = true;
     }
 
-    console.log('Dados:', data)
+    if (!data.cep) {
+      toast.error('O CEP é obrigatório.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+      invalidVisita = true;
+    }
+
+    if (!data.cidade) {
+      toast.error('A cidade é obrigatória.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+      invalidVisita = true;
+    }
+
+    if (!data.uf || data.uf.length !== 2) {
+      toast.error('A UF é obrigatória e deve conter 2 caracteres.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+    }
+
+    if (!data.logradouro) {
+      toast.error('O logradouro é obrigatório.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+      invalidVisita = true;
+    }
+
+    if (!data.bairro) {
+      toast.error('O bairro é obrigatório.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+      invalidVisita = true;
+    }
+
+    if (!data.numero) {
+      toast.error('O numero é obrigatório.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+      invalidVisita = true;
+    }
+    if (calcularDuracao(data.formularios, data.produtos) > 480) {
+      toast.error('A visita não pode ultrapassar o limite máximo de 8 horas por dia.', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      })
+      invalidVisita = true;
+    }
+
+    if (invalidVisita) {
+      return
+    }
+    else {
+      if (editarVisita?.id === undefined) {
+        const novoId = Date.now();
+        const novaVisita = { ...data, id: novoId };
+
+        setVisitas(prevVisitas => {
+          const visitasAtualizadas = [...prevVisitas, novaVisita];
+          return visitasAtualizadas;
+        });
+      } else {
+        setVisitas(prevVisitas => {
+          const listaAtualizada = prevVisitas.map((v) =>
+            v.id === editarVisita.id ? { ...v, ...data, id: editarVisita.id } : v
+          );
+          console.log(listaAtualizada);
+          return listaAtualizada;
+        });
+      }
+    }
+
+
+    console.log('Dados:', data, " editar: ",)
   }
 
   return (
@@ -69,24 +235,32 @@ export default function Formulario() {
         <Input {...register('produtos')} type="number" />
 
         <LabelText>CEP</LabelText>
-        <Input {...register('cep')} type="text" />
+        <Input {...register('cep')} onChange={(e) => {
+          setValue('uf', '')
+          setValue('cidade', '')
+          setValue('bairro', '')
+          setValue('logradouro', '')
+
+          handleCep(e)
+        }
+        } type="text" />
 
         <LabelText>Cidade</LabelText>
-        <Input {...register('cidade')} type="text" />
+        <Input {...register('cidade')} readOnly disabled={disabledEndereco} type="text" />
 
         <LabelText>UF</LabelText>
-        <Input {...register('uf')} type="text" />
+        <Input {...register('uf')} readOnly disabled={disabledEndereco} type="text" />
 
         <LabelText>Logradouro</LabelText>
-        <Input {...register('logradouro')} type="text" />
+        <Input {...register('logradouro')} disabled={disabledEndereco} type="text" />
 
         <LabelText>Bairro</LabelText>
-        <Input {...register('bairro')} type="text" />
+        <Input {...register('bairro')} disabled={disabledEndereco ?? true} type="text" />
 
         <LabelText>Número</LabelText>
-        <Input {...register('numero')} type="number" />
+        <Input {...register('numero')} disabled={disabledEndereco} type="number" />
 
-        <Button type="submit">ADICIONAR VISITA</Button>
+        <Button type="submit">{(editarVisita?.id === undefined) ? 'ADICIONAR VISITA' : 'EDITAR VISITA'}</Button>
       </Form>
     </Container>
   )
