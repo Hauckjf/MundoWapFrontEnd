@@ -28,10 +28,34 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [disabledEndereco, setDisabledEndereco] = useState(false);
-  const [visitas, setVisitas] = useState<Visita[]>(enviarVisitas !== null ? enviarVisitas : [])
-  const { register, handleSubmit, setValue } = useForm<Visita>({
+  const [visitas, setVisitas] = useState<Visita[]>(enviarVisitas ?? []);
+
+  const { register, handleSubmit, setValue, reset } = useForm<Visita>({
     defaultValues: editarVisita ?? {}
   })
+
+  const visitasPorData = visitas.reduce((acc, visita) => {
+    if (!acc[visita.data]) {
+      acc[visita.data] = [];
+    }
+    acc[visita.data].push(visita);
+    return acc;
+  }, {} as Record<string, Visita[]>);
+
+  const resetForm = () => {
+    reset({
+      formularios: 0,
+      produtos: 0,
+      data: '',
+      cep: '',
+      uf: '',
+      cidade: '',
+      bairro: '',
+      logradouro: '',
+      numero: undefined,
+    });
+  };
+
   const handleCep = (e: any) => {
     setDisabledEndereco(true);
     if (typingTimeoutRef.current) {
@@ -63,10 +87,18 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
   }
 
   useEffect(() => {
+    if (editarVisita?.id === undefined) {
+      resetForm();
+    }
+  }, []);
+
+  useEffect(() => {
     receberVisitas(visitas);
   }, [visitas]);
 
   function onSubmit(data: Visita) {
+
+
     let invalidVisita = false;
 
     if (!data.data) {
@@ -81,7 +113,8 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
       })
       invalidVisita = true;
     }
-    if (!data.formularios || data.produtos < 0) {
+
+    if (!data.formularios || data.formularios < 1) {
       toast.error('O número de formulários é obrigatório.', {
         position: 'top-right',
         autoClose: 5000,
@@ -93,7 +126,7 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
       })
       invalidVisita = true;
     }
-    if (!data.produtos || data.produtos < 0) {
+    if (!data.produtos || data.produtos < 1) {
       toast.error('A quantidade de produtos é obrigatória.', {
         position: 'top-right',
         autoClose: 5000,
@@ -105,6 +138,38 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
       })
       invalidVisita = true;
     }
+
+    if (visitasPorData[data.data] !== undefined) {
+
+      var totalFormularios = visitasPorData[data.data].reduce(
+        (total, visita) => total + (editarVisita?.id === visita.id ? 0 : Number(visita.formularios)), 0
+      );
+
+      var totalProdutos = visitasPorData[data.data].reduce(
+        (total, visita) => total + (editarVisita?.id === visita.id ? 0 : Number(visita.produtos)), 0
+      );
+
+      totalFormularios += Number(data.formularios);
+      totalProdutos += Number(data.produtos);
+
+      if (editarVisita?.id === undefined) {
+        if (calcularDuracao(  Number(totalFormularios) + Number(data.formularios), Number(totalProdutos) + Number(data.produtos)) > 480) {
+          toast.error('As visitas do dia não podem ultrapassar o limite máximo de 8 horas...', {
+            position: 'top-right',
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            theme: 'light'
+          })
+          invalidVisita = true;
+        }
+
+      }
+    }
+
+
 
     if (!data.cep) {
       toast.error('O CEP é obrigatório.', {
@@ -201,12 +266,22 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
     else {
       if (editarVisita?.id === undefined) {
         const novoId = Date.now();
-        const novaVisita = { ...data, id: novoId };
+        const novaVisita = { ...data, id: novoId, status: "pendente" };
 
-        setVisitas(prevVisitas => {
+        setVisitas((prevVisitas: any) => {
           const visitasAtualizadas = [...prevVisitas, novaVisita];
           return visitasAtualizadas;
         });
+        toast.success('A visita foi adicionada com sucesso.', {
+          position: 'top-right',
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          theme: 'light'
+        })
+        resetForm();
       } else {
         setVisitas(prevVisitas => {
           const listaAtualizada = prevVisitas.map((v) =>
@@ -215,6 +290,16 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
           console.log(listaAtualizada);
           return listaAtualizada;
         });
+        toast.success('A visita foi editada com sucesso.', {
+          position: 'top-right',
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          theme: 'light'
+        })
+        resetForm();
       }
     }
 

@@ -19,11 +19,17 @@ type Visita = {
   numero: number
 }
 
+interface BarProgressProps {
+  percent: number;
+  cor: string;
+}
+
 function App() {
 
-  const [modalAddVisitaPendente, setModalAddVisitaPendente] = useState(false);
+  const [modalVisitaPendente, setModalVisitaPendente] = useState(false);
   const [selectedVisita, setSelectedVisita] = useState({} as Visita | null);
   const [visitas, setVisitas] = useState<Visita[]>([])
+
   const visitasPorData = visitas.reduce((acc, visita) => {
     if (!acc[visita.data]) {
       acc[visita.data] = [];
@@ -34,63 +40,103 @@ function App() {
 
   const handleVisitas = (e: any) => {
     setVisitas(e);
+    if (e !== visitas) {
+      setModalVisitaPendente(false);
+    }
   }
+
+  const concluirVisita = (id: number) => {
+    setVisitas((prev) =>
+      prev.map((visita) =>
+        visita.id === id ? { ...visita, status: 'concluída' } : visita
+      )
+    );
+  };
+
+  const calcularDuracao = (form: number, produtos: number) => {
+    return (15 * form) + (5 * produtos)
+  }
+
+  const calcularPercentualDiario = (visitas: Visita[]) => {
+    const totalMinutos = visitas.reduce((total, v) => total + calcularDuracao(v.formularios, v.produtos), 0);
+    return (totalMinutos / 480) * 100;
+  };
 
   return (
     <>
-
+      <Toast
+        position="top-right"
+        autoClose={50000}
+        hideProgressBar={true}
+        newestOnTop={true}
+        closeOnClick={false}
+        rtl={false}
+        pauseOnFocusLoss
+        pauseOnHover
+        theme="light"
+      />
       <Container>
         <Cabecalho>
           <Title>Bem vindo - Sistema de gerenciamento de visitas</Title>
-          <Button onClick={() => setModalAddVisitaPendente(true)}> Adicionar Visita</Button>
+          <Button onClick={() => { setModalVisitaPendente(true); setSelectedVisita(null); }}> Adicionar Visita</Button>
         </Cabecalho>
         <ListaVisitas>
-          {Object.keys(visitasPorData).map((data) => (
-            <DataGroup key={data}>
-              <DataTitle>{data}</DataTitle>
-              <GridContainer>
-                {visitasPorData[data].map((visita) => (
-                  <Card key={visita.id}>
-                    <Info>
-                      <Label>Status:</Label>
-                      <Status status={visita.status}>{visita.status}</Status>
+          {Object.keys(visitasPorData).map((dia) => {
+            var percent = Number(calcularPercentualDiario(visitasPorData[dia]).toFixed(2));
 
-                      <Label>Endereço:</Label>
-                      <Content>
-                        {visita.logradouro}, {visita.numero} - {visita.bairro}, {visita.cidade}/{visita.uf}
-                      </Content>
+            var dataFormatada = new Date(dia).toLocaleDateString('PT-BR', {
+              weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
+            });
 
-                      <Label>Formulários e Produtos:</Label>
-                      <Content>
-                        {visita.formularios} formulários, {visita.produtos} produtos
-                      </Content>
-                    </Info>
+            dataFormatada = dataFormatada[0].toUpperCase() + dataFormatada.slice(1).replace(',', '');
 
-                    <EditButton onClick={() => { setSelectedVisita(visita); setModalAddVisitaPendente(true); }}>Editar</EditButton>
-                  </Card>
-                ))}
-              </GridContainer>
-            </DataGroup>
-          ))}
+            let cor = '#2563eb'
+            if (percent < 60) cor = '#ff0000'
+            if (percent > 90) cor = '#18c900'
+            return (
+              <DataGroup key={dia}>
+                <GridContainer>
+                  <DataTitle><BarProgress percent={percent} cor={cor} />
+                    {dataFormatada} ({percent}%)</DataTitle>
+                </GridContainer>
+                <GridContainer>
+                  {visitasPorData[dia].map((visita) => (
+                    <Card key={visita.id}>
+                      <Info>
+                        <Label>Status:</Label>
+                        <Status status={visita.status}>{visita.status}</Status>
+
+                        <Label>Endereço:</Label>
+                        <Content>
+                          {visita.logradouro}, {visita.numero} - {visita.bairro}, {visita.cidade}/{visita.uf}
+                        </Content>
+
+                        <Label>Formulários e Produtos:</Label>
+                        <Content>
+                          {visita.formularios} formulários, {visita.produtos} produtos
+                        </Content>
+                      </Info>
+                      {visita.status === 'pendente' && <>
+                        <EditButton onClick={() => { setSelectedVisita(visita); setModalVisitaPendente(true); }}>Editar</EditButton>
+                        <FinishButton onClick={() => concluirVisita(visita.id)}>
+                          Concluir Visita
+                        </FinishButton>
+                      </>}
+                    </Card>
+                  ))}
+                </GridContainer>
+              </DataGroup>
+            )
+          })}
         </ListaVisitas>
-        {modalAddVisitaPendente &&
+        {modalVisitaPendente &&
           <FundoModal>
             <Modal>
-              <HeadModal onClick={() => { setModalAddVisitaPendente(false); }}><ArrowLeft /> Voltar</HeadModal>
+              <HeadModal onClick={() => { setModalVisitaPendente(false); }}><ArrowLeft /> Voltar</HeadModal>
               <Formulario receberVisitas={handleVisitas} editarVisita={selectedVisita ?? null} enviarVisitas={visitas} />
             </Modal>
           </FundoModal>}
-        <Toast
-          position="top-right"
-          autoClose={50000}
-          hideProgressBar={true}
-          newestOnTop={true}
-          closeOnClick={false}
-          rtl={false}
-          pauseOnFocusLoss
-          pauseOnHover
-          theme="light"
-        />
+
       </Container>
 
     </>
@@ -105,6 +151,7 @@ const Title = styled.h1`
 `
 
 const DataGroup = styled.div`
+  display: block;
   margin-bottom: 2rem;
 `;
 
@@ -113,6 +160,14 @@ const DataTitle = styled.h2`
   font-weight: 700;
   color: #374151;
   margin-bottom: 1rem;
+`;
+
+const BarProgress = styled.div<BarProgressProps>`
+  background-color: ${({ cor }) => cor};
+  height: 20%;
+  width: ${({ percent }) => `${percent}%`};
+  transition: width 0.3s ease;
+  display: block;
 `;
 
 const ListaVisitas = styled.div`
@@ -133,6 +188,7 @@ const Button = styled.button`
   background-color: #3b82f6;
   color: white;
   margin-left: 10px;
+  margin-bottom: 10px;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   border: none;
@@ -141,15 +197,14 @@ const Button = styled.button`
   &:hover {
     background-color: #2563eb;
   }`
+
 const Toast = styled(ToastContainer)`
   top: 2;
   left: 2;
   width: 100%;
-  height: 100%;
-  position: relative;
+  position: fixed;
   
 `
-
 const ArrowLeft = styled(IconArrowLeft)`
   width: 2rem;
   height: 2rem;
@@ -233,6 +288,20 @@ const EditButton = styled.button`
 
   &:hover {
     background-color: #2563eb;
+  }
+`;
+
+const FinishButton = styled.button`
+  margin-top: 1rem;
+  background-color:rgb(26, 236, 79);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    background-color:rgb(0, 233, 12);
   }
 `;
 
