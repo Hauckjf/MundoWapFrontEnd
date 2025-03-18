@@ -4,6 +4,9 @@ import { useForm } from 'react-hook-form'
 import styled from 'styled-components'
 import Formulario from './components/Formulario';
 import { Bounce, Slide, ToastContainer, toast } from "react-toastify";
+import { parseISO, format, addDays } from 'date-fns';
+import Cookies from 'universal-cookie';
+
 
 type Visita = {
   id: number
@@ -26,9 +29,10 @@ interface BarProgressProps {
 
 function App() {
 
+  const cookies = new Cookies();
   const [modalVisitaPendente, setModalVisitaPendente] = useState(false);
   const [selectedVisita, setSelectedVisita] = useState({} as Visita | null);
-  const [visitas, setVisitas] = useState<Visita[]>([])
+  const [visitas, setVisitas] = useState<Visita[]>(cookies.get('visitas') ?? [])
 
   const visitasPorData = visitas.reduce((acc, visita) => {
     if (!acc[visita.data]) {
@@ -38,8 +42,23 @@ function App() {
     return acc;
   }, {} as Record<string, Visita[]>);
 
+
+  const visitasConcluidasPorData = visitas.reduce((acc, visita) => {
+    if (visita.status === 'concluída') {
+      if (!acc[visita.data]) {
+        acc[visita.data] = [];
+      }
+      acc[visita.data].push(visita);
+    }
+    return acc;
+
+  }, {} as Record<string, Visita[]>);
+
   const handleVisitas = (e: any) => {
     setVisitas(e);
+
+    cookies.set('visitas', e);
+
     if (e !== visitas) {
       setModalVisitaPendente(false);
     }
@@ -60,6 +79,61 @@ function App() {
   const calcularPercentualDiario = (visitas: Visita[]) => {
     const totalMinutos = visitas.reduce((total, v) => total + calcularDuracao(v.formularios, v.produtos), 0);
     return (totalMinutos / 480) * 100;
+  };
+
+  const fecharDia = (dia: any) => {
+    setVisitas((prevVisitas) => {
+      let visitasPendentes = visitasPorData[dia]?.filter(v => v.status === 'pendente') || [];
+      if (visitasPendentes.length === 0) {
+        toast.error('Dia fechado e visitas movidas com sucesso!', {
+          position: 'top-right',
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          theme: 'light'
+        });
+        return prevVisitas;
+      }
+
+      let novasVisitas = prevVisitas.filter(v => !(v.data === dia && v.status === 'pendente'));
+      let proximaData = addDays(parseISO(dia), 1);
+
+      while (visitasPendentes.length > 0) {
+        const proximaDataFormatada = format(proximaData, 'yyyy-MM-dd');
+
+        const minutosOcupados = (visitasPorData[proximaDataFormatada] || []).reduce(
+          (total, v) => total + calcularDuracao(v.formularios, v.produtos),
+          0
+        );
+
+        let minutosDisponiveis = 480 - minutosOcupados;
+
+        visitasPendentes = visitasPendentes.filter(visita => {
+          const duracaoVisita = calcularDuracao(visita.formularios, visita.produtos);
+          if (duracaoVisita <= minutosDisponiveis) {
+            novasVisitas.push({ ...visita, data: proximaDataFormatada });
+            minutosDisponiveis -= duracaoVisita;
+            return false;
+          }
+          return true;
+        });
+
+        if (visitasPendentes.length > 0) proximaData = addDays(proximaData, 1);
+      }
+
+      toast.success('Dia fechado e visitas movidas com sucesso!', {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: 'light'
+      });
+      return novasVisitas;
+    });
   };
 
   return (
@@ -83,10 +157,15 @@ function App() {
         <ListaVisitas>
           {Object.keys(visitasPorData).map((dia) => {
             var percent = Number(calcularPercentualDiario(visitasPorData[dia]).toFixed(2));
-
-            var dataFormatada = new Date(dia).toLocaleDateString('PT-BR', {
-              weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
-            });
+            /*   var percentConcluido = Number(calcularPercentualDiario(visitasConcluidasPorData[dia]).toFixed(2)); */
+            var dataFormatada = new Date(`${dia}T00:00:00-03:00`)
+              .toLocaleDateString('pt-BR', {
+                timeZone: 'America/Sao_Paulo',
+                weekday: 'short',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              });
 
             dataFormatada = dataFormatada[0].toUpperCase() + dataFormatada.slice(1).replace(',', '');
 
@@ -98,6 +177,9 @@ function App() {
                 <GridContainer>
                   <DataTitle><BarProgress percent={percent} cor={cor} />
                     {dataFormatada} ({percent}%)</DataTitle>
+                  <FinishButton onClick={() => fecharDia(dia)}>
+                    Fechar dia útil
+                  </FinishButton>
                 </GridContainer>
                 <GridContainer>
                   {visitasPorData[dia].map((visita) => (

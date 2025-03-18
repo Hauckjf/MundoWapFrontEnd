@@ -3,6 +3,8 @@ import { useForm } from 'react-hook-form'
 import styled from 'styled-components'
 import { Bounce, Slide, ToastContainer, toast } from "react-toastify"
 import axios from 'axios'
+import Cookies from 'universal-cookie';
+
 
 type Visita = {
   id: number
@@ -26,8 +28,15 @@ type FormularioProps = {
 
 export default function Formulario({ enviarVisitas, editarVisita, receberVisitas }: FormularioProps) {
 
+  const cookies = new Cookies();
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [disabledEndereco, setDisabledEndereco] = useState(false);
+  const [disabledEndereco, setDisabledEndereco] = useState({
+    logradouro: false,
+    bairro: false,
+    cidade: false,
+    uf: false,
+    numero: false,
+  } as any);
   const [visitas, setVisitas] = useState<Visita[]>(enviarVisitas ?? []);
 
   const { register, handleSubmit, setValue, reset } = useForm<Visita>({
@@ -57,29 +66,69 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
   };
 
   const handleCep = (e: any) => {
-    setDisabledEndereco(true);
+    setDisabledEndereco({
+      logradouro: true,
+      bairro: true,
+      cidade: true,
+      uf: true,
+      numero: true,
+    });
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
     }
 
     typingTimeoutRef.current = setTimeout(() => {
-
       axios
         .get(`https://viacep.com.br/ws/${e.target.value.replace(/\D/g, '')}/json/`)
         .then((r: any) => {
+
           setValue('uf', r.data.uf || '')
           setValue('cidade', r.data.localidade || '')
           setValue('bairro', r.data.bairro || '')
           setValue('logradouro', r.data.logradouro || '')
-          setDisabledEndereco(false)
+          setValue('numero', r.data.numero || '')
 
           if (r.data.bairro === '' && r.data.logradouro === '') {
-            setValue('bairro', r.data.bairro || '')
-            setValue('logradouro', r.data.logradouro || '')
+            setDisabledEndereco({
+              logradouro: true,
+              bairro: false,
+              cidade: false,
+              uf: true,
+              numero: false,
+            });
+          }
+          else {
+            setDisabledEndereco({
+              logradouro: false,
+              bairro: false,
+              cidade: false,
+              uf: false,
+              numero: false,
+            });
           }
         })
-        .catch(() => setDisabledEndereco(false))
+        .catch(() => {
+
+          setDisabledEndereco({
+            logradouro: true,
+            bairro: true,
+            cidade: true,
+            uf: true,
+            numero: false,
+          })
+
+          toast.error('Houve algum problema ao buscar o cep', {
+            position: 'top-right',
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            theme: 'light'
+          })
+        })
     }, 1000)
+
   }
 
   const calcularDuracao = (form: number, produtos: number) => {
@@ -94,6 +143,7 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
 
   useEffect(() => {
     receberVisitas(visitas);
+    cookies.set('visitas', visitas);
   }, [visitas]);
 
   function onSubmit(data: Visita) {
@@ -153,7 +203,7 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
       totalProdutos += Number(data.produtos);
 
       if (editarVisita?.id === undefined) {
-        if (calcularDuracao(  Number(totalFormularios) + Number(data.formularios), Number(totalProdutos) + Number(data.produtos)) > 480) {
+        if (calcularDuracao(Number(totalFormularios) + Number(data.formularios), Number(totalProdutos) + Number(data.produtos)) > 480) {
           toast.error('As visitas do dia não podem ultrapassar o limite máximo de 8 horas...', {
             position: 'top-right',
             autoClose: 5000,
@@ -321,6 +371,11 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
 
         <LabelText>CEP</LabelText>
         <Input {...register('cep')} onChange={(e) => {
+          let value = e.target.value.replace(/\D/g, ''); 
+          if (value.length > 5) {
+            value = value.replace(/^(\d{5})(\d{1,3})$/, '$1-$2'); 
+          }
+          setValue('cep', value);
           setValue('uf', '')
           setValue('cidade', '')
           setValue('bairro', '')
@@ -328,22 +383,22 @@ export default function Formulario({ enviarVisitas, editarVisita, receberVisitas
 
           handleCep(e)
         }
-        } type="text" />
+        } maxLength={9} type="text" />
 
         <LabelText>Cidade</LabelText>
-        <Input {...register('cidade')} readOnly disabled={disabledEndereco} type="text" />
+        <Input {...register('cidade')} readOnly disabled={disabledEndereco['cidade']} type="text" />
 
         <LabelText>UF</LabelText>
-        <Input {...register('uf')} readOnly disabled={disabledEndereco} type="text" />
+        <Input {...register('uf')} readOnly disabled={disabledEndereco['uf']} type="text" />
 
         <LabelText>Logradouro</LabelText>
-        <Input {...register('logradouro')} disabled={disabledEndereco} type="text" />
+        <Input {...register('logradouro')} disabled={disabledEndereco['logradouro']} type="text" />
 
         <LabelText>Bairro</LabelText>
-        <Input {...register('bairro')} disabled={disabledEndereco ?? true} type="text" />
+        <Input {...register('bairro')} disabled={disabledEndereco['bairro']} type="text" />
 
         <LabelText>Número</LabelText>
-        <Input {...register('numero')} disabled={disabledEndereco} type="number" />
+        <Input {...register('numero')} disabled={disabledEndereco['numero']} type="number" />
 
         <Button type="submit">{(editarVisita?.id === undefined) ? 'ADICIONAR VISITA' : 'EDITAR VISITA'}</Button>
       </Form>
