@@ -27,6 +27,11 @@ interface BarProgressProps {
   cor: string;
 }
 
+interface BarProgressConcluidoProps {
+  percentConcluido: number;
+  cor: string;
+}
+
 function App() {
 
   const cookies = new Cookies();
@@ -51,12 +56,10 @@ function App() {
       acc[visita.data].push(visita);
     }
     return acc;
-
   }, {} as Record<string, Visita[]>);
 
   const handleVisitas = (e: any) => {
     setVisitas(e);
-
     cookies.set('visitas', e);
 
     if (e !== visitas) {
@@ -156,8 +159,8 @@ function App() {
         </Cabecalho>
         <ListaVisitas>
           {Object.keys(visitasPorData).map((dia) => {
-            var percent = Number(calcularPercentualDiario(visitasPorData[dia]).toFixed(2));
-            /*   var percentConcluido = Number(calcularPercentualDiario(visitasConcluidasPorData[dia]).toFixed(2)); */
+            var percent = Number(calcularPercentualDiario(visitasPorData[dia] ?? []).toFixed(2));
+            var percentConcluido = visitasConcluidasPorData[dia] ? Number(calcularPercentualDiario(visitasConcluidasPorData[dia] ?? []).toFixed(2)) : 0;
             var dataFormatada = new Date(`${dia}T00:00:00-03:00`)
               .toLocaleDateString('pt-BR', {
                 timeZone: 'America/Sao_Paulo',
@@ -175,11 +178,28 @@ function App() {
             return (
               <DataGroup key={dia}>
                 <GridContainer>
-                  <DataTitle><BarProgress percent={percent} cor={cor} />
-                    {dataFormatada} ({percent}%)</DataTitle>
-                  <FinishButton onClick={() => fecharDia(dia)}>
-                    Fechar dia útil
-                  </FinishButton>
+                  <DataTitle>
+                    {dataFormatada}                
+                    <FinishButton onClick={() => fecharDia(dia)}>
+                      Fechar dia útil
+                    </FinishButton>
+                  </DataTitle>
+                  <ListaBar>
+                    <Label>
+                      ({percent}%)
+                      Barra de progresso por hora Pendentes
+                    </Label>
+                    <FundoBarProgress>
+                      <BarProgress percent={percent} cor={cor} />
+                    </FundoBarProgress>
+                    <Label>
+                      ({percentConcluido}%)
+                      Barra de progresso por hora Concluídos
+                    </Label>
+                    <FundoBarProgressConcluido>
+                      <BarProgressConcluido percentConcluido={percentConcluido} cor={'#1aec4f'} />
+                    </FundoBarProgressConcluido>
+                  </ListaBar>
                 </GridContainer>
                 <GridContainer>
                   {visitasPorData[dia].map((visita) => (
@@ -246,14 +266,59 @@ const DataTitle = styled.h2`
 
 const BarProgress = styled.div<BarProgressProps>`
   background-color: ${({ cor }) => cor};
-  height: 20%;
+  border-radius: 0.5rem;
+  height: 100%;
   width: ${({ percent }) => `${percent}%`};
+  transition: width 0.3s ease;
+  display: block;
+
+  
+`;
+
+const FundoBarProgress = styled.div`
+  background-color: #2cec1a;
+  border-radius: 0.5rem;
+  height: 20%;
+  width: 100%;
+`
+
+const BarProgressConcluido = styled.div<BarProgressConcluidoProps>`
+  background-color: ${({ cor }) => cor};
+  border-radius: 0.5rem;
+  height: 100%;
+  width: ${({ percentConcluido }) => `${percentConcluido}%`};
   transition: width 0.3s ease;
   display: block;
 `;
 
+const FundoBarProgressConcluido = styled.div`
+  background-color: #ec1a1a;
+  border-radius: 0.5rem;
+  height: 20%;
+  width: 100%;
+  margin-bottom: 30px;
+`
+
+const ListaBar = styled.div`
+  height: 100%;
+  width: 90%;
+  margin-bottom: 120px;
+  margin: 10px;
+
+  @media (min-width: 340px) {
+    height: 100%;
+    max-width: 50%;
+  }
+`
+
 const ListaVisitas = styled.div`
-  margin:10px;
+  margin: 10px;
+  max-width: 100vw;
+  @media (max-width: 368px) {
+    max-width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+  }
 `
 
 const Container = styled.div`
@@ -261,6 +326,12 @@ const Container = styled.div`
   overflow-x: hidden;
   width: 100%;
   height: 100%;
+  align-items: center;
+  display: table;
+  @media (max-width: 368px) {
+    flex-direction: row;
+    justify-content: space-between;
+  }
 `
 const Cabecalho = styled.header`
   width: 100%;
@@ -319,13 +390,24 @@ const Modal = styled.div`
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
   background-color: #fff;
   border-radius: 0.5rem;
+  @media (min-width: 640px) {
+  width: 70%;
+  }
   `
 
 const GridContainer = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-auto-flow: column;
+  grid-template-rows: auto;
+  overflow-x: auto;
   gap: 1rem;
-  padding: 1rem;
+  max-width: 100vw;
+  width: 100%;
+  margin: 30px;
+
+  @media (min-width: 640px) {
+    width: auto;
+  }
 `;
 
 const Card = styled.div`
@@ -336,8 +418,12 @@ const Card = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  width: 230px;
+  
+  @media (min-width: 340px) {
+    width: 300px;
+  }
 `;
-
 const Info = styled.div`
   display: flex;
   flex-direction: column;
@@ -348,6 +434,9 @@ const Label = styled.span`
   font-weight: 600;
   color: #6b7280;
   margin-top: 0.5rem;
+  white-space: nowrap;
+  padding-right: 100px;
+
 `;
 
 const Content = styled.span`
@@ -360,7 +449,7 @@ const Status = styled(Content) <{ status: 'pendente' | 'concluída' }>`
 `;
 
 const EditButton = styled.button`
-  margin-top: 1rem;
+  margin: 1rem;
   background-color: #3b82f6;
   color: white;
   padding: 0.5rem 1rem;
@@ -374,8 +463,8 @@ const EditButton = styled.button`
 `;
 
 const FinishButton = styled.button`
-  margin-top: 1rem;
-  background-color:rgb(26, 236, 79);
+  margin: 1rem;
+  background-color: #1aec4f;
   color: white;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
@@ -383,7 +472,11 @@ const FinishButton = styled.button`
   cursor: pointer;
 
   &:hover {
-    background-color:rgb(0, 233, 12);
+    background-color: rgb(0, 233, 12);
+  }
+
+  @media (min-width: 640px) {
+    width: auto;
   }
 `;
 
